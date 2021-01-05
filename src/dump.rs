@@ -98,22 +98,13 @@ fn dump_rows(
 ) -> io::Result<()> {
     let mut rows = Vec::new();
     OutputDump::push_all(value, intern, &mut vec![], &mut rows);
-    let col_width: usize = rows
-        .iter()
-        .map(|cols| cols.iter().map(|s| s.len()).max().unwrap_or(0))
-        .max()
-        .unwrap_or(0);
     for row in &rows {
         let mut string = String::new();
 
         let (last, not_last) = row.split_last().unwrap();
         for col in not_last {
             string.push_str(col);
-
-            let padding = col_width - col.len();
-            for _ in 0..=padding {
-                string.push(' ');
-            }
+            string.push('\t');
         }
         string.push_str(last);
 
