@@ -80,6 +80,7 @@ subset(origin1, origin2, targetNode) :-
   (origin_live_on_entry(origin2, targetNode); placeholder(origin2, _)).
 
 
+// Formerly `requires`
 .decl origin_contains_loan_on_entry(origin: Origin, loan: Loan, node: Node)
 
 origin_contains_loan_on_entry(origin, loan, node) :-
@@ -100,6 +101,7 @@ origin_contains_loan_on_entry(origin, loan, node) :-
   placeholder(origin, loan).
 
 
+// Formerly `borrow_live_at`
 .decl loan_live_at(loan: Loan, node: Node)
 
 loan_live_at(loan, node) :-
