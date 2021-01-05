@@ -101,7 +101,7 @@ path_begins_with_var(path, var) :-
 // This is not used to compute move errors -- it would be too "optimistic",
 // since it only computes if a value *may* be initialized. See the next section
 // on computing *uninitialization*.
-.decl path_maybe_initialized_on_exit(path: Path, node: Node)
+.decl path_maybe_initialized_on_exit(path: Path, node: Node) brie
 
 path_maybe_initialized_on_exit(path, node) :-
     path_assigned_at(path, node).
@@ -129,7 +129,7 @@ var_maybe_partly_initialized_on_exit(var, node) :-
 // intersection, which is not available in "core datalog". It may make sense --
 // as an optimization -- to try and convert to intersection, although it is
 // debatable which will result in more tuples overall.
-.decl path_maybe_uninitialized_on_exit(path: Path, node: Node)
+.decl path_maybe_uninitialized_on_exit(path: Path, node: Node) brie
 
 path_maybe_uninitialized_on_exit(path, node) :-
     path_moved_at(path, node).
