@@ -1,12 +1,5 @@
 # Atoms
 
-Polonius defines the following **atoms**. To Polonius, these are
-opaque identifiers that identify particular things within the input
-program (literally they are newtype'd integers). Their meaning and
-relationships come entirely from the input relations.
-
-## Example
-
 We'll use this snippet of Rust code to illustrate the various kinds of
 atoms that can exist.
 
@@ -17,13 +10,15 @@ let z = x.0;
 drop(y);
 ```
 
-## Variables
+#### `Var`
 
 A **variable** represents a user variable defined by the Rust source
 code. In our snippet, `x`, `y`, and `z` are variables. Other kinds of
 variables include parameters.
 
-## Path
+	.type Var <: unsigned
+
+#### `Path`
 
 A **path** indicates a path through memory to a memory location --
 these roughly correspond to **places** in MIR, although we only
@@ -49,7 +44,9 @@ atom P1 for the path `x` and another atom P2 for the path `x.0`.
 These atoms are related to one another through the `path_parent`
 relation.
 
-## Node
+	.type Path <: unsigned
+
+#### `Node`
 
 Nodes are, well, *nodes* in the control-flow graph. They are related
 to one another by the `cfg_edge` relation.
@@ -60,17 +57,30 @@ begun executing -- the other is called the "mid node" -- which
 represents the point where S "takes effect". Each start node has
 exactly one successor, the mid node.
 
-## Loans
+	.type Node <: unsigned
+
+#### `Block`
+
+	.type Block <: unsigned
+
+#### `Location`
+
+	.type Location = [ block: Block, stmt: unsigned, mid: symbol ]
+
+#### `Loan`
 
 A **loan** represents some borrow that occurs in the source.  Each
 loan has an associated path that was borrowed along with a mutability.
 So, in our example, there would be a single loan, for the `&x.1`
 expression.
 
-## Origins
+	.type Loan <: unsigned
+
+#### `Origin`
 
 An **origin** is what it typically called in Rust a **lifetime**. In
 Polonius, an **origin** refers to the set of loans from which a
 reference may have been created.
 
+	.type Origin <: unsigned
 

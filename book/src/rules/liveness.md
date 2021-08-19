@@ -1,3 +1,119 @@
 # Liveness analysis
 
-**These rules are not yet described.**
+The role of the liveness computation is to figure out, for each cfg node,
+which variables may be accessed at some point in the future. We also
+distinguish between variables that may be accessed in general and those that
+may only be dropped. This is because a "full access" may potentially
+dereference any reference found in the variable, whereas a drop is more
+limited in its effects.
+
+One interesting wrinkle around drops is that we also need to consider the
+initialization state of each variable. This is because `Drop` statements can
+be added for variables which are never initialized, or whose values have
+been moved. Such statements are considered no-ops in MIR.
+
+## Inputs
+
+#### `var_used_at`
+
+Variable is used at the given CFG node
+
+	.decl var_used_at(variable: Var, node: Node)
+	.input var_used_at
+
+#### `var_defined_at`
+
+Variable is defined (overwritten) at the given CFG node
+
+	.decl var_defined_at(variable: Var, node: Node)
+	.input var_defined_at
+
+#### `var_dropped_at`
+
+Variable is dropped at this cfg node
+
+	.decl var_dropped_at(variable: Var, node: Node)
+	.input var_dropped_at
+
+#### `use_of_var_derefs_origin`
+
+References with the given origin may be
+dereferenced when the variable is used.
+
+In rustc, we generate this whenever the
+type of the variable includes the given
+origin.
+
+	.decl use_of_var_derefs_origin(variable: Var, origin: Origin)
+	.input use_of_var_derefs_origin
+
+References with the given origin may be
+dereferenced when the variable is dropped
+
+#### `drop_of_var_derefs_origin`
+
+In rustc, we generate this by examining the type
+and taking into account various
+unstable attributes. It is always a subset
+of `use_of_var_derefs_origin`.
+
+	.decl drop_of_var_derefs_origin(variable: Var, origin: Origin)
+	.input drop_of_var_derefs_origin
+
+## Relations
+
+#### `var_live_on_entry`
+
+Variables that are live on entry.
+
+	.decl var_live_on_entry(var: Var, node: Node)
+
+	var_live_on_entry(var, node) :-
+	    var_used_at(var, node).
+
+	var_live_on_entry(var, sourceNode) :-
+	    var_live_on_entry(var, targetNode),
+	    cfg_edge(sourceNode, targetNode),
+	    !var_defined_at(var, sourceNode).
+
+#### `var_drop_live_on_entry`
+
+Variables that are "drop live" on entry.
+
+The initial rule is that, when a variable is dropped, that makes it
+drop-live -- unless we know that the variable is fully uninitialized, in
+which case the drop is a no-op.
+
+**Optimization:** In rustc, we compute drop-live only up to the point where
+something becomes "use-live". We could do the same here by adding some `!`
+checks against `var_live_on_entry`, though it would require stratification
+in the datalog (not a problem).
+
+	.decl var_drop_live_on_entry(var: Var, node: Node)
+
+	var_drop_live_on_entry(var, targetNode) :-
+	    var_dropped_at(var, targetNode),
+	    cfg_edge(sourceNode, targetNode),
+	    var_maybe_partly_initialized_on_exit(var, sourceNode).
+
+	var_drop_live_on_entry(var, sourceNode) :-
+	    var_drop_live_on_entry(var, targetNode),
+	    cfg_edge(sourceNode, targetNode),
+	    !var_defined_at(var, sourceNode),
+	    var_maybe_partly_initialized_on_exit(var, sourceNode).
+
+#### `origin_live_on_entry`
+
+An origin is live at the node N if some reference with that origin may be
+dereferenced in the future.
+
+	.decl origin_live_on_entry(origin: Origin, node: Node)
+
+	origin_live_on_entry(origin, node) :-
+	    var_live_on_entry(var, node),
+	    use_of_var_derefs_origin(var, origin).
+
+	origin_live_on_entry(origin, node) :-
+	    var_drop_live_on_entry(var, node),
+	    drop_of_var_derefs_origin(var, origin).
+

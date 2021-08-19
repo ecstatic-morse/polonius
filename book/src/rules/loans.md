@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Loan analysis
 
 Loan analysis is the heart of the borrow checker, and will compute:
@@ -241,3 +242,153 @@ In the current implementation, this quick `LocationInsensitive` filter is used a
 A more detailed description of the rules in this `Opt` variant will be added later but it computes the same data as the `Naive` variant described above, more efficiently, by limiting where the subset transitive closure is computed: some origins are short-lived, or part of a subsection of the subset graph into which no loan ever flows, and therefore don't contribute to errors or loan propagation. There's no need to track these specific cases.
 
 In the meantime, [the implementation](https://github.com/rust-lang/polonius/blob/master/polonius-engine/src/output/datafrog_opt.rs) documents the relations and rules it uses in its computation.
+||||||| parent of 87982d4e2c (Check-in updated rules to book)
+=======
+# Loans
+
+## Inputs
+
+#### `loan_issued_at`
+
+Indicates that the given loan `Loan` was "issued" at the given node `Node`,
+creating a reference with the origin `Origin`.
+
+	.decl loan_issued_at(origin: Origin, loan: Loan, node: Node)
+	.input loan_issued_at
+
+#### `loan_killed_at`
+
+Indicates that the path borrowed by the loan `Loan` has changed in some way
+that the loan no longer needs to be tracked. (in particular, mutations to the
+path that was borrowed no longer invalidate the loan.)
+
+	.decl loan_killed_at(loan: Loan, node: Node)
+	.input loan_killed_at
+
+#### `loan_invalidated_at`
+
+Indicates that the loan is "invalidated" by some action tha takes place at the
+given node; if any origin that references this loan is live, that is an error
+
+	.decl loan_invalidated_at(loan: Loan, node: Node)
+	.input loan_invalidated_at
+
+#### `subset_base`
+
+Indicates that `O1 <= O2` -- i.e., the set of loans in O1 are a subset of those
+in O2.
+
+	.decl subset_base(origin1: Origin, origin2: Origin, n: Node)
+	.input subset_base
+
+#### `placeholder`
+
+Declares a "placeholder origin" and loan. These are the named lifetimes that
+appear on function declarations and the like (e.g., the `'a` in `fn
+foo<'a>(...)`).
+
+	.decl placeholder(o: Origin, l: Loan)
+	.input placeholder
+
+#### `known_placeholder_subset`
+
+Declares a known subset relation between two placeholder origins. For example,
+`fn foo<'a, 'b: 'a>()` would have a relation to `'b: 'a`. This is not
+transitive.
+
+	.decl known_placeholder_subset(origin1: Origin, origin2: Origin)
+	.input known_placeholder_subset
+
+## Relations
+
+#### `placeholder_known_to_contain`
+
+Computes the placeholder loans that a given placeholder origin is known to
+contain. This is derived from the `known_placeholder_subset` relation.
+
+	.decl placeholder_known_to_contain(o: Origin, l: Loan)
+
+	placeholder_known_to_contain(origin, loan) :-
+	  placeholder(origin, loan).
+
+	placeholder_known_to_contain(origin2, loan1) :-
+	  placeholder_known_to_contain(origin1, loan1),
+	  known_placeholder_subset(origin1, origin2).
+
+#### `loan_live_on_entry`
+
+	.decl loan_live_on_entry(loan: Loan, node: Node)
+
+	loan_live_on_entry(loan, node) :-
+	  origin_contains_loan_on_entry(origin, loan, node),
+	  (origin_live_on_entry(origin, node); placeholder(origin, _)).
+
+#### `subset`
+
+	.decl subset(origin1: Origin, origin2: Origin, node: Node)
+
+	subset(origin1, origin2, node) :-
+	  subset_base(origin1, origin2, node).
+
+	subset(origin1, origin3, node) :-
+	  subset(origin1, origin2, node),
+	  subset(origin2, origin3, node).
+
+	subset(origin1, origin2, targetNode) :-
+	  subset(origin1, origin2, sourceNode),
+	  cfg_edge(sourceNode, targetNode),
+	  (origin_live_on_entry(origin1, targetNode); placeholder(origin1, _)),
+	  (origin_live_on_entry(origin2, targetNode); placeholder(origin2, _)).
+
+#### `origin_contains_loan_on_entry`
+
+	.decl origin_contains_loan_on_entry(origin: Origin, loan: Loan, node: Node)
+
+	origin_contains_loan_on_entry(origin, loan, node) :-
+	  loan_issued_at(origin, loan, node).
+
+	origin_contains_loan_on_entry(origin2, loan, node) :-
+	  origin_contains_loan_on_entry(origin1, loan, node),
+	  subset(origin1, origin2, node).
+
+	origin_contains_loan_on_entry(origin, loan, targetNode) :-
+	  origin_contains_loan_on_entry(origin, loan, sourceNode),
+	  !loan_killed_at(loan, sourceNode),
+	  cfg_edge(sourceNode, targetNode),
+	  (origin_live_on_entry(origin, targetNode); placeholder(origin, _)).
+
+	origin_contains_loan_on_entry(origin, loan, node) :-
+	  cfg_node(node),
+	  placeholder(origin, loan).
+
+#### `loan_live_at`
+
+	.decl loan_live_at(loan: Loan, node: Node)
+
+	loan_live_at(loan, node) :-
+	  origin_contains_loan_on_entry(origin, loan, node),
+	  origin_live_on_entry(origin, node).
+
+## Error reporting
+
+#### `errors`
+
+	.decl errors(l: Loan, n: Node)
+	.output errors
+
+	errors(loan, node) :-
+	   loan_invalidated_at(loan, node),
+	   loan_live_at(loan, node).
+
+#### `subset_errors`
+
+	.decl subset_errors(origin1: Origin, origin2: Origin, node: Node)
+	.output subset_errors
+
+	subset_errors(origin1, origin2, node) :-
+	  placeholder(origin1, loan1),
+	  placeholder(origin2, _),
+	  origin_contains_loan_on_entry(origin2, loan1, node),
+	  !placeholder_known_to_contain(origin2, loan1).
+
+>>>>>>> 87982d4e2c (Check-in updated rules to book)
