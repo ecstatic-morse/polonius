@@ -55,6 +55,18 @@ impl Algorithm {
             "Hybrid",
         ]
     }
+
+    pub fn souffle_name(&self) -> Option<&'static str> {
+        let ret = match self {
+            Self::Naive => "naive",
+            Self::DatafrogOpt => "opt",
+            Self::LocationInsensitive => "noloc",
+
+            _ => return None,
+        };
+
+        Some(ret)
+    }
 }
 
 impl ::std::str::FromStr for Algorithm {

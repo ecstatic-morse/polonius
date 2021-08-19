@@ -12,8 +12,51 @@ use std::fs::File;
 use std::hash::Hash;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::convert::TryInto;
 
 pub(crate) type Output = PoloniusEngineOutput<LocalFacts>;
+
+pub(crate) fn dump_souffle_output(
+    output: &HashMap<String, polonius_souffle::DynTuples>,
+    output_dir: &Option<PathBuf>,
+    intern: &InternerTables,
+) -> io::Result<()> {
+    if let Some(subset_errors) = output.get("subset_errors") {
+        let (_, mut w) = writer_for(output_dir, "subset_errors")?;
+        for subset_error in subset_errors.iter() {
+            let [o1, o2, node]: [u32; 3] = subset_error.try_into().expect("`subset_errors` must have arity 3");
+            let o1 = intern.origins.untern(o1.into());
+            let o2 = intern.origins.untern(o2.into());
+            let node = intern.points.untern(node.into());
+
+            writeln!(w, "{}\t{}\t{}", o1, o2, node)?;
+        }
+    }
+
+    if let Some(errors) = output.get("errors") {
+        let (_, mut w) = writer_for(output_dir, "errors")?;
+        for error in errors.iter() {
+            let [loan, node]: [u32; 2] = error.try_into().expect("`errors` must have arity 2");
+            let loan = intern.origins.untern(loan.into());
+            let node = intern.points.untern(node.into());
+
+            writeln!(w, "{}\t{}", loan, node)?;
+        }
+    }
+
+    if let Some(move_errors) = output.get("move_errors") {
+        let (_, mut w) = writer_for(output_dir, "move_errors")?;
+        for error in move_errors.iter() {
+            let [path, node]: [u32; 2] = error.try_into().expect("`move_errors` must have arity 2");
+            let path = intern.paths.untern(path.into());
+            let node = intern.points.untern(node.into());
+
+            writeln!(w, "{}\t{}", path, node)?;
+        }
+    }
+
+    Ok(())
+}
 
 pub(crate) fn dump_output(
     output: &Output,
@@ -57,28 +100,29 @@ pub(crate) fn dump_output(
     }
     return Ok(());
 
-    fn writer_for(
-        out_dir: &Option<PathBuf>,
-        name: &str,
-    ) -> io::Result<(Option<String>, Box<dyn Write>)> {
-        // create a writer for the provided output.
-        // If we have an output directory use that, otherwise just dump to stdout
-        use std::fs;
+}
 
-        Ok(match out_dir {
-            Some(dir) => {
-                fs::create_dir_all(&dir)?;
-                let mut of = dir.join(name);
-                of.set_extension("facts");
-                (None, Box::new(fs::File::create(of)?))
-            }
-            None => {
-                let mut stdout = io::stdout();
-                write!(&mut stdout, "# {}\n", name)?;
-                (Some(name.to_string()), Box::new(stdout))
-            }
-        })
-    }
+fn writer_for(
+    out_dir: &Option<PathBuf>,
+    name: &str,
+) -> io::Result<(Option<String>, Box<dyn Write>)> {
+    // create a writer for the provided output.
+    // If we have an output directory use that, otherwise just dump to stdout
+    use std::fs;
+
+    Ok(match out_dir {
+        Some(dir) => {
+            fs::create_dir_all(&dir)?;
+            let mut of = dir.join(name);
+            of.set_extension("facts");
+            (None, Box::new(fs::File::create(of)?))
+        }
+        None => {
+            let mut stdout = io::stdout();
+            write!(&mut stdout, "# {}\n", name)?;
+            (Some(name.to_string()), Box::new(stdout))
+        }
+    })
 }
 
 trait OutputDump {
