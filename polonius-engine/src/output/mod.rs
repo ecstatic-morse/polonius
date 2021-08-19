@@ -12,6 +12,7 @@ use datafrog::Relation;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
+use std::convert::TryInto;
 
 use crate::facts::{AllFacts, Atom, FactTypes};
 
@@ -54,6 +55,24 @@ impl Algorithm {
             "Compare",
             "Hybrid",
         ]
+    }
+
+    pub fn engine(&self) -> Engine {
+        match *self {
+            Self::Naive(eng) | Self::DatafrogOpt(eng) => eng,
+            Self::LocationInsensitive | Self::Compare | Self::Hybrid => Engine::Datafrog,
+        }
+    }
+
+    pub fn souffle_name(&self) -> Option<&'static str> {
+        let ret = match self {
+            Self::Naive(Engine::Souffle) => "naive",
+            Self::DatafrogOpt(Engine::Souffle) => "opt",
+
+            _ => return None,
+        };
+
+        Some(ret)
     }
 }
 
