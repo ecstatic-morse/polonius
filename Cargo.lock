@@ -419,8 +419,14 @@ version = "0.12.1"
 dependencies = [
  "datafrog",
  "log",
+ "polonius-facts",
+ "polonius-souffle",
  "rustc-hash",
 ]
+
+[[package]]
+name = "polonius-facts"
+version = "0.1.0"
 
 [[package]]
 name = "polonius-parser"
@@ -441,7 +447,7 @@ dependencies = [
  "glob",
  "is_executable",
  "log",
- "polonius-engine",
+ "polonius-facts",
  "which",
 ]
 
