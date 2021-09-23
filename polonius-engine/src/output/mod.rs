@@ -186,6 +186,7 @@ impl<T: FactTypes> Output<T> {
     ///   partial results can also be stored in the context, so that the following
     ///   variant can use it to prune its own input data
     pub fn compute(all_facts: &AllFacts<T>, algorithm: Algorithm, dump_enabled: bool) -> Self {
+        #[cfg(polonius_souffle)]
         if algorithm.engine() == Engine::Souffle {
             let name = algorithm.souffle_name().expect("Algorithm does not have Soufflé version");
             let facts = polonius_souffle::run_from_facts(name, &all_facts);

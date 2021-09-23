@@ -11,6 +11,6 @@ keywords = ["compiler", "borrowck", "datalog"]
 [dependencies]
 datafrog = { path = "../../datafrog" }
 polonius-facts = { path = "../polonius-facts" }
-polonius-souffle = { path = "../polonius-souffle" }
+polonius-souffle = { path = "../polonius-souffle", optional = true }
 rustc-hash = "1.0.0"
 log = "0.4"
