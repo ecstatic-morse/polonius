@@ -1,0 +1,157 @@
+#pragma once
+#include "paths.dl"
+#include "cfg.dl"
+
+// # Initialization (Basic Block)
+
+// ## Relations
+
+.decl path_becomes_init_at_location(path: Path, loc: Location)
+.output path_becomes_init_at_location
+
+path_becomes_init_at_location(path, [bb, stmt]) :-
+    path_assigned_at(path, node),
+    node_loc(node, bb, stmt).
+
+.decl path_becomes_init_at_bb_stmt(path: Path, bb: Block, stmt: unsigned)
+path_becomes_init_at_bb_stmt(path, bb, stmt) :- path_becomes_init_at_location(path, [bb, stmt]).
+
+.decl path_becomes_uninit_at_location(path: Path, loc: Location)
+.output path_becomes_uninit_at_location
+
+.decl path_becomes_uninit_at_bb_stmt(path: Path, bb: Block, stmt: unsigned)
+path_becomes_uninit_at_bb_stmt(path, bb, stmt) :- path_becomes_uninit_at_location(path, [bb, stmt]).
+
+path_becomes_uninit_at_location(path, [bb, stmt]) :-
+    path_moved_at(path, node),
+    node_loc(node, bb, stmt).
+
+
+// This is the "gen" half of the gen/kill transfer function for each basic block.
+.decl path_becomes_init_in_block(path: Path, bb: Block)
+.output path_becomes_init_in_block
+
+// A path becomes initialized in a block if:
+
+// It is initialized at some statement in that block and does not become
+// uninitialized at any subsequent statements.
+path_becomes_init_in_block(path, bb) :-
+    path_becomes_init_at_bb_stmt(path, bb, uninit_at),
+    count : { path_becomes_uninit_at_bb_stmt(path, bb, uninit_at), uninit_at > init_at } = 0.
+
+// This is the "kill" half of the gen/kill transfer function for each basic block.
+.decl path_becomes_uninit_in_block(path: Path, bb: Block)
+.output path_becomes_uninit_in_block
+
+path_becomes_uninit_in_block(path, bb) :-
+    path_becomes_uninit_at_bb_stmt(path, bb, uninit_at),
+    count : { path_becomes_init_at_bb_stmt(path, bb, init_at), init_at > uninit_at } = 0.
+
+// A path is initialized at the exit of a basic block if:
+
+// The path becomes initialized within that block.
+.decl path_maybe_init_at_block_exit(path: Path, bb: Block) inline
+
+path_maybe_init_at_block_exit(path, bb) :-
+    path_becomes_init_in_block(path, bb).
+
+// -OR-
+// The path is initialized at the start of that block, and does not
+// become uninitialized within that block.
+path_maybe_init_at_block_exit(path, bb) :-
+    path_maybe_init_at_block_entry(path, bb),
+    !path_becomes_uninit_in_block(path, bb).
+
+
+.decl path_maybe_uninit_at_block_exit(path: Path, bb: Block) inline
+
+path_maybe_uninit_at_block_exit(path, bb) :-
+    path_becomes_uninit_in_block(path, bb).
+
+path_maybe_uninit_at_block_exit(path, bb) :-
+    path_maybe_uninit_at_block_entry(path, bb),
+    !path_becomes_uninit_in_block(path, bb).
+
+
+.decl path_maybe_init_at_block_entry(path: Path, bb: Block)
+
+// A path is initialized at the entry of a basic block if it is initialized
+// at the exit of one of its predecessors in the CFG.
+path_maybe_init_at_block_entry(path, bb) :-
+    path_maybe_init_at_block_exit(path, pred),
+    bb_edge(pred, bb).
+
+
+.decl path_maybe_uninit_at_block_entry(path: Path, bb: Block)
+.output path_maybe_uninit_at_block_entry
+
+path_maybe_uninit_at_block_entry(path, bb) :-
+    path_maybe_uninit_at_block_exit(path, pred),
+    bb_edge(pred, bb).
+
+
+.decl path_maybe_init_at_location(path: Path, loc: Location) inline
+
+// The path becomes initialized at some point before the statement in question,
+// and does not become uninitialized between that point and the statement in
+// question.
+path_maybe_init_at_location(path, [bb, stmt]) :-
+    path_becomes_init_at_location(path, [bb, init_at]),
+    init_at < stmt,
+    uninit_at = range(init_at, stmt),
+    !path_becomes_uninit_at_location(path, [bb, uninit_at]).
+
+// The path is (maybe) initialized at block entry, and does not become
+// uninitialized before the statement in question.
+path_maybe_init_at_location(path, [bb, stmt]) :-
+    path_maybe_init_at_block_entry(path, bb),
+    uninit_at = range(0, stmt),
+    !path_becomes_uninit_at_location(path, [bb, uninit_at]).
+
+
+/*
+.decl path_maybe_uninit_at_location(path: Path, loc: Location) inline
+
+path_maybe_uninit_at_location(path, [bb, stmt]) :-
+    path_maybe_uninit_at_block_entry(path, bb),
+    count : { path_becomes_init_at_bb_stmt(path, bb, init_at), init_at <= stmt } = 0).
+
+path_maybe_uninit_at_location(path, [bb, stmt]) :-
+    path_becomes_uninit_at_bb_stmt(path, bb, uninit_at),
+    uninit_at <= stmt,
+    count : { path_becomes_init_at_bb_stmt(path, bb, init_at), init_at > uninit_at, init_at <= stmt} = 0).
+*/
+
+#define path_maybe_uninit_at_location(path, bb, stmt) ( \
+        (path_maybe_uninit_at_block_entry(path, bb), count : { path_becomes_init_at_bb_stmt(path, bb, init_at), init_at <= stmt } = 0); \
+        (path_becomes_uninit_at_bb_stmt(path, bb, uninit_at), uninit_at <= stmt, count : { path_becomes_init_at_bb_stmt(path, bb, init_at), init_at > uninit_at, init_at <= stmt} = 0) \
+    )
+
+
+.decl var_maybe_partly_initialized_on_exit(var: Var, node: Node) inline
+
+var_maybe_partly_initialized_on_exit(var, node) :-
+    node_loc(node, bb, stmt),
+    path_begins_with_var(path, var),
+    path_maybe_init_at_location(path, [bb, stmt]).
+
+
+.decl path_maybe_uninit_at_location_out(path: Path, loc: Location)
+.output path_maybe_uninit_at_location_out
+
+path_maybe_uninit_at_location_out(path, [bb, stmt]) :-
+    path_maybe_uninit_at_location(path, bb, stmt),
+    is_loc([bb, stmt]).
+
+
+// ## Errors
+
+.decl move_error(path: Path, node: Node)
+.output move_error
+
+move_error(path, node) :-
+    path_accessed_at(path, node),
+    cfg_edge(pred, node),
+    node_loc(pred, bb, stmt),
+    path_maybe_uninit_at_location(path, bb, stmt).
+

@@ -3,6 +3,13 @@
 
 // # Control-flow graph
 
+// A basic block.
+.type Block <: symbol
+
+
+// A basic block and an index corresponding to a statement within that basic block.
+.type Location = [ block: Block, stmt: unsigned ]
+
 // ## Nodes
 
 // Indicates that an edge exists between `source` and `target`
@@ -18,21 +25,14 @@ cfg_node(p) :- cfg_edge(_, p).
 
 // ## Basic Blocks
 
+// An edge in the CFG from the exit of `src` to the entry of `targ`.
 .decl bb_edge(src: Block, targ: Block)
 .input bb_edge
 
-.decl node_is_loc(node: Node, loc: Location)
-.input node_is_loc
+// The basic block and statement corresponding to each `Node`.
+.decl node_loc(node: Node, bb: Block, stmt: unsigned)
+.input node_loc
 
+.decl is_loc(loc: Location)
 
-.decl precedes_in_block(loc1: Location, loc2: Location) inline
-
-precedes_in_block([bb, stmt1, mid1], [bb, stmt2, mid2]) :-
-    stmt2 > stmt1; (stmt1 = stmt2, mid2 = "Mid", mid1 = "Start").
-
-
-.decl succeeds_in_block(loc1: Location, loc2: Location) inline
-
-succeeds_in_block([bb, stmt1, mid1], [bb, stmt2, mid2]) :-
-    stmt2 > stmt1; (stmt1 = stmt2, mid1 = "Mid", mid2 = "Start").
-
+is_loc([bb, stmt]) :- node_loc(_, bb, stmt).
